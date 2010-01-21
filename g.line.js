@@ -48,6 +48,7 @@ Raphael.fn.g.linechart = function (x, y, width, height, valuesx, valuesy, opts) 
         that = this,
         columns = null,
         dots = null,
+        swath = null,
         chart = this.set(),
         path = [];
 
@@ -165,6 +166,21 @@ Raphael.fn.g.linechart = function (x, y, width, height, valuesx, valuesy, opts) 
         }
         !f && (dots = cvrs);
     }
+    function createSwath() {
+        var swathWidth = width - gutter * 2,
+            swathHeight = height - gutter * 2,
+            swathX = x + gutter,
+            swathY = y + gutter;
+        swath = that.rect(swathX, swathY, swathWidth, swathHeight, 0).attr({
+            stroke: 'none',
+            fill: '#000',
+            opacity: 0
+        });
+        swath.x = swathX;
+        swath.y = swathY;
+        swath.width = swathWidth;
+        swath.height = swathHeight;
+    }
     chart.push(lines, shades, symbols, axis, columns, dots);
     chart.lines = lines;
     chart.shades = shades;
@@ -212,6 +228,47 @@ Raphael.fn.g.linechart = function (x, y, width, height, valuesx, valuesy, opts) 
     chart.eachColumn = function (f) {
         createColumns(f);
         return this;
+    };
+    chart.mouseMove = function(f) {
+        !swath && createSwath();
+        var fn = function(mouseEvent) {
+            mouseEvent.chartX = ((mouseEvent.offsetX - swath.x) / swath.width) * (maxx - minx);
+            mouseEvent.chartY = ((swath.height - (mouseEvent.offsetY - swath.y)) / swath.height) * (maxy - miny);
+            f.call(chart, mouseEvent);
+        };
+        swath.mousemove(fn);
+        return this;
+    };
+    chart.valuesAtX = function(cx) {
+        var samps = [];
+        for (var i = 0, ii = valuesy.length; i < ii; i++) {
+            var lowerX, upperX, lowerY, upperY;
+            for (var j = 0, jj = valuesy[i].length; j < jj; j++) {
+                if (valuesx[i][j] < cx) {
+                    lowerX = valuesx[i][j];
+                    lowerY = valuesy[i][j];
+                } 
+                if (!upperX && valuesx[i][j] > cx) {
+                    upperX = valuesx[i][j];
+                    upperY = valuesy[i][j];
+                }
+            }
+            
+            if (undefined !== lowerX && undefined !== lowerY &&
+                undefined !== upperX && undefined !== upperY) {
+                var range = upperX - lowerX,
+                    weightedLower = lowerY * ((upperX - cx) / range),
+                    weightedUpper = upperY * ((cx - lowerX) / range),
+                    samp = weightedLower + weightedUpper;
+                samps[i] = samp;
+            } else {
+                samps[i] = undefined;
+            }
+        }
+        return samps;
+    };
+    chart.valueForSetAtX = function(i, cx) {
+        return chart.valuesAtX(cx)[i];
     };
     return chart;
 };
